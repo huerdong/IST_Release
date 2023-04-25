@@ -40,39 +40,61 @@ def partition_FC_layer_by_input_dim_1(tensor, index_buffer):
     return results
 
 
-def update_tensor_by_update_lists_dim_0(tensor, update_list, index_buffer):
+def update_tensor_by_update_lists_dim_0(tensor, update_list, index_buffer, weights):
     assert(len(update_list) == len(index_buffer))
-    index_count = {}
-    result_tensor = torch.zeros_like(tensor)
+    #index_count = {}
+    mask_tensor = torch.zeros_like(tensor)
+    masked_indices = set()
+    
     for i in range(len(update_list)):
-        for ind in index_buffer[i]:
-            if ind not in index_count:
-                index_count[ind] = 0
-            index_count[ind] += 1
-        result_tensor.index_add_(0, index_buffer[i], update_list[i])
+        #for ind in index_buffer[i]:
+        #    if ind not in index_count:
+        #        index_count[ind] = 1 # Start with initial tensor
+        #    index_count[ind] += 1
 
-    for key, val in index_count.items():
-        result_tensor[key] = result_tensor[key].div(val)
+        masked_indices.update(index_buffer[i])
 
-    return result_tensor
+        mask_tensor.index_add_(0, index_buffer[i], update_list[i], alpha=weights[i])
+
+    masked_indices = torch.tensor(list(masked_indices), dtype=torch.long)
+
+    reordered_masked_tensor = torch.index_select(mask_tensor, 0, masked_indices)
+
+    tensor.index_copy_(0, masked_indices, reordered_masked_tensor)
+
+    #for key, val in index_count.items():
+    #    tensor[key] = tensor[key].div(val)
+
+    return tensor
         #tensor.index_copy_(0, index_buffer[i], update_list[i])
     
 
-def update_tensor_by_update_lists_dim_1(tensor, update_list, index_buffer):
+def update_tensor_by_update_lists_dim_1(tensor, update_list, index_buffer, weights):
     assert(len(update_list) == len(index_buffer))
-    index_count = {}
-    result_tensor = torch.zeros_like(tensor)
+    #index_count = {}
+    mask_tensor = torch.zeros_like(tensor)
+    masked_indices = set()
+
     for i in range(len(update_list)):
-        for ind in index_buffer[i]:
-            if ind not in index_count:
-                index_count[ind] = 0
-            index_count[ind] += 1
-        result_tensor.index_add_(1, index_buffer[i], update_list[i])
+        #for ind in index_buffer[i]:
+        #    if ind not in index_count:
+        #        index_count[ind] = 1
+        #    index_count[ind] += 1
 
-    for key, val in index_count.items():
-        result_tensor[key] = result_tensor[key].div(val)
+        masked_indices.update(index_buffer[i])
+   
+        mask_tensor.index_add_(1, index_buffer[i], update_list[i], alpha=weights[i])
 
-    return result_tensor
+    #for key, val in index_count.items():
+    #    tensor[key] = tensor[key].div(val)
+
+    masked_indices = torch.tensor(list(masked_indices), dtype=torch.long)
+
+    reordered_masked_tensor = torch.index_select(mask_tensor, 1, masked_indices)
+
+    tensor.index_copy_(1, masked_indices, reordered_masked_tensor)
+
+    return tensor
  
 
 def partition_FC_layer_by_dim_01(tensor, index_buffer0, index_buffer1):
@@ -85,7 +107,7 @@ def partition_FC_layer_by_dim_01(tensor, index_buffer0, index_buffer1):
     dim0 = tensor.shape[0]
     dim1 = tensor.shape[1]
     assert(len(index_buffer0)==len(index_buffer1))
-    #split_num = len(index_buffer0)
+    split_num = len(index_buffer0)
     #assert (dim0 % split_num == 0 and dim1 % split_num == 0)
     results = []
     for i in range(split_num):
